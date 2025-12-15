@@ -1,0 +1,21 @@
+# Smithery configuration file
+# https://smithery.ai/docs/getting-started
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      hfToken:
+        type: string
+        description: "Hugging Face API 토큰 (이미지 생성에 필요)"
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['build/index.js'],
+      env: {
+        HF_TOKEN: config.hfToken || ''
+      }
+    })
+
