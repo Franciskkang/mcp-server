@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>업무용 체크리스트</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --primary-bg: #eff6ff;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --success: #10b981;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: var(--gray-800);
+        }
+
+        .container {
+            max-width: 580px;
+            margin: 0 auto;
+        }
+
+        /* 헤더 섹션 */
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: var(--gray-500);
+        }
+
+        /* 통계 카드 */
+        .stats-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-item:not(:last-child) {
+            border-right: 1px solid var(--gray-200);
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .stat-number.completed {
+            color: var(--success);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+
+        /* 진행률 바 */
+        .progress-section {
+            margin-top: 8px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .progress-percentage {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .progress-bar-container {
+            background: var(--gray-100);
+            border-radius: 100px;
+            height: 12px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 100px;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 0%;
+        }
+
+        /* 입력 섹션 */
+        .input-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-wrapper input {
+            flex: 1;
+            padding: 14px 18px;
+            font-size: 15px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .input-wrapper input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-bg);
+        }
+
+        .input-wrapper input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .add-btn {
+            padding: 14px 24px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .add-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .add-btn:active {
+            transform: translateY(0);
+        }
+
+        /* 체크리스트 섹션 */
+        .checklist-section {
+            background: white;
+            border-radius: 16px;
+            padding: 8px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+        }
+
+        .checklist-header {
+            padding: 16px 16px 12px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .checklist-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .item-count {
+            font-size: 12px;
+            color: var(--gray-400);
+            background: var(--gray-100);
+            padding: 4px 10px;
+            border-radius: 100px;
+        }
+
+        .checklist {
+            list-style: none;
+            padding: 8px;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            gap: 14px;
+        }
+
+        .checklist-item:hover {
+            background: var(--gray-50);
+        }
+
+        .checklist-item.completed {
+            background: var(--primary-bg);
+        }
+
+        .checklist-item.completed:hover {
+            background: #dbeafe;
+        }
+
+        /* 커스텀 체크박스 */
+        .checkbox-wrapper {
+            position: relative;
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .checkbox-wrapper input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        .checkmark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border: 2px solid var(--gray-300);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-wrapper input:hover + .checkmark {
+            border-color: var(--primary);
+        }
+
+        .checkbox-wrapper input:checked + .checkmark {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .checkmark::after {
+            content: '';
+            position: absolute;
+            display: none;
+            left: 7px;
+            top: 3px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .checkbox-wrapper input:checked + .checkmark::after {
+            display: block;
+        }
+
+        /* 아이템 텍스트 */
+        .item-text {
+            flex: 1;
+            font-size: 15px;
+            color: var(--gray-700);
+            transition: all 0.3s ease;
+            line-height: 1.5;
+        }
+
+        .checklist-item.completed .item-text {
+            text-decoration: line-through;
+            color: var(--gray-400);
+        }
+
+        /* 삭제 버튼 */
+        .delete-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--gray-400);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0;
+        }
+
+        .checklist-item:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .delete-btn:hover {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .delete-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* 빈 상태 */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--gray-400);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* 애니메이션 */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .checklist-item {
+            animation: slideIn 0.3s ease;
+        }
+
+        /* 반응형 */
+        @media (max-width: 480px) {
+            body {
+                padding: 20px 16px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .stat-number {
+                font-size: 26px;
+            }
+
+            .input-wrapper {
+                flex-direction: column;
+            }
+
+            .add-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>📋 업무 체크리스트</h1>
+            <p>오늘의 할 일을 관리하세요</p>
+        </div>
+
+        <!-- 통계 카드 -->
+        <div class="stats-card">
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalCount">0</div>
+                    <div class="stat-label">전체 항목</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number completed" id="completedCount">0</div>
+                    <div class="stat-label">완료</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="remainingCount">0</div>
+                    <div class="stat-label">남은 항목</div>
+                </div>
+            </div>
+            <div class="progress-section">
+                <div class="progress-header">
+                    <span class="progress-label">진행률</span>
+                    <span class="progress-percentage" id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 입력 섹션 -->
+        <div class="input-section">
+            <div class="input-wrapper">
+                <input type="text" id="taskInput" placeholder="새로운 할 일을 입력하세요..." onkeypress="handleKeyPress(event)">
+                <button class="add-btn" onclick="addTask()">추가</button>
+            </div>
+        </div>
+
+        <!-- 체크리스트 섹션 -->
+        <div class="checklist-section">
+            <div class="checklist-header">
+                <span class="checklist-title">할 일 목록</span>
+                <span class="item-count" id="itemCount">0개의 항목</span>
+            </div>
+            <ul class="checklist" id="checklist">
+                <!-- 항목들이 여기에 추가됩니다 -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 초기 예시 항목
+        const defaultTasks = [
+            { text: '행사 장소 예약', completed: false },
+            { text: '안내 메일 발송', completed: false },
+            { text: '물품 준비', completed: false },
+            { text: '참석자 명단 정리', completed: false }
+        ];
+
+        // 로컬 스토리지에서 데이터 로드 또는 기본값 사용
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || defaultTasks;
+
+        // 페이지 로드 시 렌더링
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTasks();
+            updateStats();
+        });
+
+        // 할 일 추가 함수
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            const text = input.value.trim();
+            
+            if (text === '') {
+                input.focus();
+                return;
+            }
+
+            tasks.unshift({ text: text, completed: false });
+            saveTasks();
+            renderTasks();
+            updateStats();
+            
+            input.value = '';
+            input.focus();
+        }
+
+        // 엔터 키 처리
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                addTask();
+            }
+        }
+
+        // 할 일 완료 상태 토글
+        function toggleTask(index) {
+            tasks[index].completed = !tasks[index].completed;
+            saveTasks();
+            renderTasks();
+            updateStats();
+        }
+
+        // 할 일 삭제
+        function deleteTask(index) {
+            tasks.splice(index, 1);
+            saveTasks();
+            renderTasks();
+            updateStats();
+        }
+
+        // 할 일 목록 렌더링
+        function renderTasks() {
+            const checklist = document.getElementById('checklist');
+            
+            if (tasks.length === 0) {
+                checklist.innerHTML = `
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <p>등록된 할 일이 없습니다.<br>새로운 할 일을 추가해보세요!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            checklist.innerHTML = tasks.map((task, index) => `
+                <li class="checklist-item ${task.completed ? 'completed' : ''}">
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${index})">
+                        <span class="checkmark"></span>
+                    </div>
+                    <span class="item-text">${escapeHtml(task.text)}</span>
+                    <button class="delete-btn" onclick="deleteTask(${index})" title="삭제">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </li>
+            `).join('');
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.completed).length;
+            const remaining = total - completed;
+            const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('completedCount').textContent = completed;
+            document.getElementById('remainingCount').textContent = remaining;
+            document.getElementById('progressPercent').textContent = percentage + '%';
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('itemCount').textContent = total + '개의 항목';
+        }
+
+        // 로컬 스토리지에 저장
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        // HTML 이스케이프 (XSS 방지)
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
