@@ -5,8 +5,7 @@ npm-debug.log
 .cursor
 *.md
 *.log
-src
-tsconfig.json
 .env
 .env.*
-
+build
+index.html
