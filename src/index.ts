@@ -1,6 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { InferenceClient } from '@huggingface/inference'
 import { z } from 'zod'
+import { createServer as createHttpServer } from 'http'
 
 // Smithery 배포를 위한 설정 스키마
 export const configSchema = z.object({
@@ -912,3 +914,63 @@ export default function createServer({ config }: { config: Config }) {
     // Smithery 형식: server.server 객체 반환
     return server.server
 }
+
+// HTTP 서버 시작 (Smithery remote deployment용)
+async function startHttpServer() {
+    const config = {
+        hfToken: process.env.HF_TOKEN || ''
+    }
+    
+    const mcpServer = createServer({ config })
+    const PORT = parseInt(process.env.PORT || '8000', 10)
+    
+    // Streamable HTTP transport 설정
+    const httpServer = createHttpServer(async (req, res) => {
+        // CORS 헤더 설정
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id')
+        res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id')
+        
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204)
+            res.end()
+            return
+        }
+        
+        // Health check endpoint
+        if (req.url === '/health' && req.method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok' }))
+            return
+        }
+        
+        // MCP endpoint
+        if (req.url === '/mcp' && req.method === 'POST') {
+            const transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: () => crypto.randomUUID()
+            })
+            
+            res.on('close', () => {
+                transport.close()
+            })
+            
+            await mcpServer.connect(transport)
+            await transport.handleRequest(req, res)
+            return
+        }
+        
+        // 404 for other routes
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Not found' }))
+    })
+    
+    httpServer.listen(PORT, () => {
+        console.log(`MCP HTTP Server running on port ${PORT}`)
+        console.log(`Health check: http://localhost:${PORT}/health`)
+        console.log(`MCP endpoint: http://localhost:${PORT}/mcp`)
+    })
+}
+
+// 직접 실행시 HTTP 서버 시작
+startHttpServer().catch(console.error)

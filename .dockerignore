@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.cursor
+*.md
+*.log
+src
+tsconfig.json
+.env
+.env.*
+
