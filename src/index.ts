@@ -917,18 +917,200 @@ export default function createServer({ config }: { config: Config }) {
     return server.server
 }
 
+// MCP 서버 인스턴스 생성 헬퍼 (HTTP 서버용)
+function createMcpServerInstance(hfToken: string): McpServer {
+    const hfClient = new InferenceClient(hfToken || process.env.HF_TOKEN)
+    
+    const server = new McpServer({
+        name: 'na-mcp-serverda',
+        version: '1.0.0'
+    })
+
+    // greet 도구 등록
+    server.registerTool(
+        'greet',
+        {
+            description: '이름과 언어를 입력하면 인사말을 반환합니다.',
+            inputSchema: z.object({
+                name: z.string().describe('인사할 사람의 이름'),
+                language: z
+                    .enum(['ko', 'en'])
+                    .optional()
+                    .default('en')
+                    .describe('인사 언어 (기본값: en)')
+            })
+        },
+        async ({ name, language }) => {
+            const greeting =
+                language === 'ko'
+                    ? `안녕하세요, ${name}님!`
+                    : `Hey there, ${name}! 👋 Nice to meet you!`
+            return {
+                content: [{ type: 'text' as const, text: greeting }]
+            }
+        }
+    )
+
+    // calculator 도구 등록
+    server.registerTool(
+        'calculator',
+        {
+            description: '두 개의 숫자와 연산자를 입력받아 사칙연산 결과를 반환합니다.',
+            inputSchema: z.object({
+                num1: z.number().describe('첫 번째 숫자'),
+                num2: z.number().describe('두 번째 숫자'),
+                operator: z.enum(['+', '-', '*', '/']).describe('연산자')
+            })
+        },
+        async ({ num1, num2, operator }) => {
+            let result: number
+            switch (operator) {
+                case '+': result = num1 + num2; break
+                case '-': result = num1 - num2; break
+                case '*': result = num1 * num2; break
+                case '/': result = num2 !== 0 ? num1 / num2 : NaN; break
+            }
+            return {
+                content: [{ type: 'text' as const, text: `${num1} ${operator} ${num2} = ${result}` }]
+            }
+        }
+    )
+
+    // timezone 도구 등록
+    server.registerTool(
+        'timezone',
+        {
+            description: '지역 위치를 입력하면 해당 지역의 시간대 정보와 현재 시간을 반환합니다.',
+            inputSchema: z.object({
+                location: z.string().describe('지역 이름 (예: Seoul, New York, Tokyo)')
+            })
+        },
+        async ({ location }) => {
+            const timezone = getTimezoneByLocation(location) || location
+            try {
+                const now = new Date()
+                const formatter = new Intl.DateTimeFormat('ko-KR', {
+                    timeZone: timezone,
+                    year: 'numeric', month: 'long', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    timeZoneName: 'short'
+                })
+                return {
+                    content: [{ type: 'text' as const, text: `📍 ${location}\n🕐 ${timezone}\n⏰ ${formatter.format(now)}` }]
+                }
+            } catch {
+                return {
+                    content: [{ type: 'text' as const, text: `시간대를 찾을 수 없습니다: ${location}` }]
+                }
+            }
+        }
+    )
+
+    // geocode 도구 등록
+    server.registerTool(
+        'geocode',
+        {
+            description: '도시 이름이나 주소를 입력받아서 위도와 경도 좌표를 반환합니다.',
+            inputSchema: z.object({
+                address: z.string().describe('도시 이름이나 주소')
+            })
+        },
+        async ({ address }) => {
+            try {
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+                    { headers: { 'User-Agent': 'MCP-Server/1.0' } }
+                )
+                const data = await response.json()
+                if (data.length === 0) {
+                    return { content: [{ type: 'text' as const, text: `위치를 찾을 수 없습니다: ${address}` }] }
+                }
+                return {
+                    content: [{ type: 'text' as const, text: `📍 ${data[0].display_name}\n위도: ${data[0].lat}\n경도: ${data[0].lon}` }]
+                }
+            } catch (error) {
+                return { content: [{ type: 'text' as const, text: `오류: ${error}` }] }
+            }
+        }
+    )
+
+    // get-weather 도구 등록
+    server.registerTool(
+        'get-weather',
+        {
+            description: '위도와 경도 좌표를 입력받아 날씨 정보를 제공합니다.',
+            inputSchema: z.object({
+                latitude: z.number().min(-90).max(90).describe('위도'),
+                longitude: z.number().min(-180).max(180).describe('경도')
+            })
+        },
+        async ({ latitude, longitude }) => {
+            try {
+                const response = await fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+                )
+                const data = await response.json()
+                const temp = data.current?.temperature_2m
+                const code = data.current?.weather_code
+                return {
+                    content: [{ type: 'text' as const, text: `🌡️ 온도: ${temp}°C\n☁️ 날씨: ${getWeatherDescription(code)}` }]
+                }
+            } catch (error) {
+                return { content: [{ type: 'text' as const, text: `오류: ${error}` }] }
+            }
+        }
+    )
+
+    // generate-image 도구 등록
+    server.registerTool(
+        'generate-image',
+        {
+            description: '텍스트 프롬프트를 입력받아 AI 이미지를 생성합니다.',
+            inputSchema: z.object({
+                prompt: z.string().describe('생성할 이미지에 대한 텍스트 설명')
+            })
+        },
+        async ({ prompt }) => {
+            try {
+                const imageResult: unknown = await hfClient.textToImage({
+                    provider: 'auto',
+                    model: 'black-forest-labs/FLUX.1-schnell',
+                    inputs: prompt,
+                    parameters: { num_inference_steps: 5 }
+                })
+                let base64Data: string
+                if (imageResult instanceof Blob) {
+                    base64Data = await blobToBase64(imageResult)
+                } else if (Buffer.isBuffer(imageResult)) {
+                    base64Data = bufferToBase64(imageResult)
+                } else {
+                    throw new Error('알 수 없는 이미지 형식')
+                }
+                return {
+                    content: [{ type: 'image' as const, data: base64Data, mimeType: 'image/png' }]
+                }
+            } catch (error) {
+                return {
+                    content: [{ type: 'text' as const, text: `이미지 생성 실패: ${error}` }],
+                    isError: true
+                }
+            }
+        }
+    )
+
+    return server
+}
+
 // HTTP 서버 시작 (Smithery remote deployment용)
 async function startHttpServer() {
-    const config = {
-        hfToken: process.env.HF_TOKEN || ''
-    }
-    
     const PORT = parseInt(process.env.PORT || '3000', 10)
+    const hfToken = process.env.HF_TOKEN || ''
+    
     const app = express()
     app.use(express.json())
     
-    // 세션별 transport 저장소
-    const transports: Record<string, StreamableHTTPServerTransport> = {}
+    // 세션별 transport 및 서버 저장소
+    const sessions: Map<string, { transport: StreamableHTTPServerTransport; server: McpServer }> = new Map()
     
     // CORS 미들웨어
     app.use((req, res, next) => {
@@ -952,29 +1134,33 @@ async function startHttpServer() {
     app.post('/mcp', async (req: Request, res: Response) => {
         const sessionId = req.headers['mcp-session-id'] as string | undefined
         let transport: StreamableHTTPServerTransport
+        let mcpServer: McpServer
         
-        if (sessionId && transports[sessionId]) {
+        if (sessionId && sessions.has(sessionId)) {
             // 기존 세션 재사용
-            transport = transports[sessionId]
+            const session = sessions.get(sessionId)!
+            transport = session.transport
+            mcpServer = session.server
         } else if (!sessionId && isInitializeRequest(req.body)) {
-            // 새 세션 초기화
+            // 새 세션 초기화 - 새 McpServer 인스턴스 생성
+            mcpServer = createMcpServerInstance(hfToken)
+            
             transport = new StreamableHTTPServerTransport({
                 sessionIdGenerator: () => randomUUID(),
                 onsessioninitialized: (id) => {
-                    transports[id] = transport
+                    sessions.set(id, { transport, server: mcpServer })
                     console.log('Session initialized:', id)
                 }
             })
             
             transport.onclose = () => {
                 if (transport.sessionId) {
-                    delete transports[transport.sessionId]
+                    sessions.delete(transport.sessionId)
                     console.log('Session closed:', transport.sessionId)
                 }
             }
             
-            // 새 MCP 서버 인스턴스 생성 및 연결
-            const mcpServer = createServer({ config })
+            // McpServer 인스턴스를 transport에 연결
             await mcpServer.connect(transport)
         } else {
             res.status(400).json({
@@ -991,10 +1177,10 @@ async function startHttpServer() {
     // MCP GET endpoint - SSE 스트림
     app.get('/mcp', async (req: Request, res: Response) => {
         const sessionId = req.headers['mcp-session-id'] as string
-        const transport = transports[sessionId]
+        const session = sessions.get(sessionId)
         
-        if (transport) {
-            await transport.handleRequest(req, res)
+        if (session) {
+            await session.transport.handleRequest(req, res)
         } else {
             res.status(400).json({
                 jsonrpc: '2.0',
@@ -1007,10 +1193,10 @@ async function startHttpServer() {
     // MCP DELETE endpoint - 세션 종료
     app.delete('/mcp', async (req: Request, res: Response) => {
         const sessionId = req.headers['mcp-session-id'] as string
-        const transport = transports[sessionId]
+        const session = sessions.get(sessionId)
         
-        if (transport) {
-            await transport.handleRequest(req, res)
+        if (session) {
+            await session.transport.handleRequest(req, res)
         } else {
             res.status(400).json({
                 jsonrpc: '2.0',
