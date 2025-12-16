@@ -21,11 +21,11 @@ RUN npm run build
 RUN npm prune --production
 
 # Expose port for HTTP server
-EXPOSE 8000
+EXPOSE 3000
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=8000
+ENV PORT=3000
 
 # Start the server
 CMD ["node", "build/index.js"]

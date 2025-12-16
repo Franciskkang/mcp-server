@@ -1,8 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { InferenceClient } from '@huggingface/inference'
 import { z } from 'zod'
-import { createServer as createHttpServer } from 'http'
+import express, { Request, Response } from 'express'
+import { randomUUID } from 'crypto'
 
 // Smithery 배포를 위한 설정 스키마
 export const configSchema = z.object({
@@ -921,51 +923,117 @@ async function startHttpServer() {
         hfToken: process.env.HF_TOKEN || ''
     }
     
-    const mcpServer = createServer({ config })
-    const PORT = parseInt(process.env.PORT || '8000', 10)
+    const PORT = parseInt(process.env.PORT || '3000', 10)
+    const app = express()
+    app.use(express.json())
     
-    // Streamable HTTP transport 설정
-    const httpServer = createHttpServer(async (req, res) => {
-        // CORS 헤더 설정
+    // 세션별 transport 저장소
+    const transports: Record<string, StreamableHTTPServerTransport> = {}
+    
+    // CORS 미들웨어
+    app.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*')
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Mcp-Session-Id')
-        res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id')
-        
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, mcp-session-id')
+        res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id')
         if (req.method === 'OPTIONS') {
-            res.writeHead(204)
-            res.end()
+            res.sendStatus(204)
             return
         }
-        
-        // Health check endpoint
-        if (req.url === '/health' && req.method === 'GET') {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ status: 'ok' }))
-            return
-        }
-        
-        // MCP endpoint
-        if (req.url === '/mcp' && req.method === 'POST') {
-            const transport = new StreamableHTTPServerTransport({
-                sessionIdGenerator: () => crypto.randomUUID()
-            })
-            
-            res.on('close', () => {
-                transport.close()
-            })
-            
-            await mcpServer.connect(transport)
-            await transport.handleRequest(req, res)
-            return
-        }
-        
-        // 404 for other routes
-        res.writeHead(404, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Not found' }))
+        next()
     })
     
-    httpServer.listen(PORT, () => {
+    // Health check endpoint
+    app.get('/health', (req: Request, res: Response) => {
+        res.json({ status: 'ok', timestamp: new Date().toISOString() })
+    })
+    
+    // MCP POST endpoint - 메시지 처리
+    app.post('/mcp', async (req: Request, res: Response) => {
+        const sessionId = req.headers['mcp-session-id'] as string | undefined
+        let transport: StreamableHTTPServerTransport
+        
+        if (sessionId && transports[sessionId]) {
+            // 기존 세션 재사용
+            transport = transports[sessionId]
+        } else if (!sessionId && isInitializeRequest(req.body)) {
+            // 새 세션 초기화
+            transport = new StreamableHTTPServerTransport({
+                sessionIdGenerator: () => randomUUID(),
+                onsessioninitialized: (id) => {
+                    transports[id] = transport
+                    console.log('Session initialized:', id)
+                }
+            })
+            
+            transport.onclose = () => {
+                if (transport.sessionId) {
+                    delete transports[transport.sessionId]
+                    console.log('Session closed:', transport.sessionId)
+                }
+            }
+            
+            // 새 MCP 서버 인스턴스 생성 및 연결
+            const mcpServer = createServer({ config })
+            await mcpServer.connect(transport)
+        } else {
+            res.status(400).json({
+                jsonrpc: '2.0',
+                error: { code: -32000, message: 'Bad Request: No valid session or not an initialize request' },
+                id: null
+            })
+            return
+        }
+        
+        await transport.handleRequest(req, res, req.body)
+    })
+    
+    // MCP GET endpoint - SSE 스트림
+    app.get('/mcp', async (req: Request, res: Response) => {
+        const sessionId = req.headers['mcp-session-id'] as string
+        const transport = transports[sessionId]
+        
+        if (transport) {
+            await transport.handleRequest(req, res)
+        } else {
+            res.status(400).json({
+                jsonrpc: '2.0',
+                error: { code: -32000, message: 'Bad Request: Invalid or missing session ID' },
+                id: null
+            })
+        }
+    })
+    
+    // MCP DELETE endpoint - 세션 종료
+    app.delete('/mcp', async (req: Request, res: Response) => {
+        const sessionId = req.headers['mcp-session-id'] as string
+        const transport = transports[sessionId]
+        
+        if (transport) {
+            await transport.handleRequest(req, res)
+        } else {
+            res.status(400).json({
+                jsonrpc: '2.0',
+                error: { code: -32000, message: 'Bad Request: Invalid or missing session ID' },
+                id: null
+            })
+        }
+    })
+    
+    // 루트 엔드포인트
+    app.get('/', (req: Request, res: Response) => {
+        res.json({
+            name: 'na-mcp-serverda',
+            version: '1.0.0',
+            status: 'running',
+            endpoints: {
+                mcp: '/mcp',
+                health: '/health'
+            }
+        })
+    })
+    
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`MCP HTTP Server running on port ${PORT}`)
         console.log(`Health check: http://localhost:${PORT}/health`)
         console.log(`MCP endpoint: http://localhost:${PORT}/mcp`)
